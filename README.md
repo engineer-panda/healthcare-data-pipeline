@@ -2,8 +2,7 @@
 
 Designed and implemented a production-grade healthcare data pipeline using Azure Data Factory and Databricks to process multiple datasets (patients, providers, visits, billings).
 
-The solution leverages hybrid incremental processing (ingestion_time watermark + control table + file-level tracking) to ensure idempotent, rerunnable data ingestion with full auditability and operational reliability.
-
+The solution leverages metadata-driven incremental processing using control tables and file-level tracking to ensure idempotent, rerunnable data ingestion with full auditability and operational reliability.
 ---
 
 ## Architecture
@@ -31,7 +30,7 @@ Source → Raw → Bronze → Silver
 ---
 
 ## Key Features
-- Hybrid incremental processing (watermark + file tracking + control tables)  
+- Incremental processing using file-level tracking and control tables 
 - Idempotent and rerunnable pipeline design  
 - Metadata-driven orchestration using control tables  
 - Robust audit logging for success, failure, and no-data scenarios  
@@ -70,7 +69,7 @@ Provides centralized metadata management and execution tracking for reliable pip
 
 PySpark-based transformations enforce schema consistency, handle nulls, and perform deduplication using window functions.
 
-Implements incremental processing using ingestion timestamps and writes optimized Delta tables to the Silver layer.
+Processes only validated Bronze data and applies deduplication and transformation logic before writing optimized Delta tables to the Silver layer.
 
 Secure connectivity to ADLS and Azure SQL is achieved via OAuth and Azure Key Vault-backed secrets.
 

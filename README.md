@@ -1,4 +1,4 @@
-# healthcare-data-pipeline
+# End-to-End Healthcare Data Pipeline (ADF and Databricks)
 
 Built a production-grade healthcare data pipeline using Azure Data Factory and Databricks to process multiple datasets (patients, providers, visits, billings) with incremental ingestion, audit tracking, and Bronze-to-Silver transformations.
 
@@ -13,8 +13,7 @@ Built a production-grade healthcare data pipeline using Azure Data Factory and D
 - Azure Key Vault (secure credential management)
 
 ## Data Flow
-Source > Raw > Bronze > Silver
-
+Source → Raw → Bronze → Silver
 - Ingested source files into Raw/Bronze using ADF  
 - Applied incremental processing using ingestion_time watermark  
 - Performed deduplication using window functions in Databricks  
@@ -54,3 +53,9 @@ Provides end-to-end visibility into pipeline execution, enabling monitoring, fai
 PySpark-based transformations handle data cleaning, schema enforcement, and deduplication using window functions before writing optimized Delta tables to the Silver layer.
 
 Secure access to ADLS and Azure SQL is managed via Azure Key Vault secrets.
+
+## Detailed Documentation
+
+For a full walkthrough of the pipeline, including architecture, pipeline design, transformations, and additional screenshots:
+
+[View Full Documentation](docs/healthcare_project_documentation)

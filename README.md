@@ -3,7 +3,7 @@
 Built a production-grade healthcare data pipeline using Azure Data Factory and Databricks to process multiple datasets (patients, providers, visits, billings) with incremental ingestion, audit tracking, and Bronze-to-Silver transformations.
 
 ## Architecture
-![Architecture](architecture.png)
+![Architecture](architecture.jpg)
 
 - Azure Data Factory (pipeline orchestration)
 - Azure Data Lake Storage Gen2 (Bronze & Silver layers)

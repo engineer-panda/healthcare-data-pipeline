@@ -32,7 +32,7 @@ Source > Raw > Bronze > Silver
 
 ## ADF Pipeline
 
-![ADF Pipeline](docs/master_pipiline.png)
+![ADF Pipeline](docs/master_pipeline.png)
 
 ### Bronze to Silver Orchestration
 This ADF pipeline orchestrates Bronze to Silver transformations across multiple healthcare datasets (patients, providers, visits, billings) using Execute Pipeline activities and parameterized runs.
@@ -41,8 +41,14 @@ Includes incremental processing using ingestion_time watermark and audit trackin
 
 ## Control Tables
 
-Used SQL tables to drive pipeline execution and track runs.
-
+Provides end-to-end visibility into pipeline execution, enabling monitoring, failure tracking, and idempotent reprocessing.
 - **Pipeline Control Table**: Stores dataset configuration (paths, load type, watermark column, active flag)
 - **Files Table**: Tracks incoming files (file_name, batch_name, processed_flag) to prevent reprocessing and support incremental loads
 - **Audit Log Table**: Tracks pipeline runs (table_name, batch_name, status, layer, timestamps)
+![Audit Table](docs/audit_table.png)
+
+## Databricks Transformation
+
+![Databricks Notebook](docs/databricks_notebook.png)
+
+PySpark-based transformations perform data cleaning, schema enforcement, and deduplication using window functions before writing optimized Delta tables to the Silver layer.

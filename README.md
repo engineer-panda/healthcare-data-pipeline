@@ -23,7 +23,7 @@ Source → Raw → Bronze → Silver
 
 - Ingested data from on-prem and external sources into Raw layer without transformation  
 - Standardized and organized data in Bronze layer using ADF pipelines  
-- Implemented hybrid incremental logic using ingestion_time watermark combined with control tables and file tracking  
+- Applied incremental processing using file-level tracking (FilesTable) and control table logic to ensure only new and unprocessed data is handled
 - Applied data validation, cleansing, and deduplication using PySpark window functions in Databricks  
 - Loaded curated, analytics-ready data into Silver layer  
 - Maintained end-to-end tracking using SQL-based control and audit tables  

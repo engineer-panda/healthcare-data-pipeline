@@ -51,4 +51,6 @@ Provides end-to-end visibility into pipeline execution, enabling monitoring, fai
 
 ![Databricks Notebook](docs/databricks_notebook.png)
 
-PySpark-based transformations perform data cleaning, schema enforcement, and deduplication using window functions before writing optimized Delta tables to the Silver layer.
+PySpark-based transformations handle data cleaning, schema enforcement, and deduplication using window functions before writing optimized Delta tables to the Silver layer.
+
+Secure access to ADLS and Azure SQL is managed via Azure Key Vault secrets.

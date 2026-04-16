@@ -1,58 +1,88 @@
-# End-to-End Healthcare Data Pipeline (ADF and Databricks)
+# End-to-End Healthcare Data Pipeline (ADF + Databricks)
 
-Built a production-grade healthcare data pipeline using Azure Data Factory and Databricks to process multiple datasets (patients, providers, visits, billings) with incremental ingestion, audit tracking, and Bronze-to-Silver transformations.
+Designed and implemented a production-grade healthcare data pipeline using Azure Data Factory and Databricks to process multiple datasets (patients, providers, visits, billings).
+
+The solution leverages hybrid incremental processing (ingestion_time watermark + control table + file-level tracking) to ensure idempotent, rerunnable data ingestion with full auditability and operational reliability.
+
+---
 
 ## Architecture
 ![Architecture](architecture.jpg)
 
-- Azure Data Factory (pipeline orchestration)
-- Azure Data Lake Storage Gen2 (Bronze & Silver layers)
-- Azure Databricks (PySpark transformations)
-- Delta Lake (ACID-compliant storage)
-- Azure SQL Database (control tables & audit logging)
-- Azure Key Vault (secure credential management)
+- Azure Data Factory for orchestration and pipeline control  
+- Azure Data Lake Storage Gen2 implementing Medallion Architecture (Raw, Bronze, Silver)  
+- Azure Databricks (PySpark) for scalable data transformation  
+- Delta Lake for ACID-compliant storage and optimized reads  
+- Azure SQL Database for metadata-driven control tables and audit logging  
+- Azure Key Vault for secure secret and credential management  
+
+---
 
 ## Data Flow
 Source → Raw → Bronze → Silver
-- Ingested source files into Raw/Bronze using ADF  
-- Applied incremental processing using ingestion_time watermark  
-- Performed deduplication using window functions in Databricks  
-- Transformed and cleaned data written to Silver layer  
-- Pipeline execution and file-level tracking maintained via SQL control tables  
+
+- Ingested data from on-prem and external sources into Raw layer without transformation  
+- Standardized and organized data in Bronze layer using ADF pipelines  
+- Implemented hybrid incremental logic using ingestion_time watermark combined with control tables and file tracking  
+- Applied data validation, cleansing, and deduplication using PySpark window functions in Databricks  
+- Loaded curated, analytics-ready data into Silver layer  
+- Maintained end-to-end tracking using SQL-based control and audit tables  
+
+---
 
 ## Key Features
-- Incremental ingestion (watermark-based)
-- Idempotent and rerunnable pipeline design
-- Metadata-driven execution using control tables
-- Audit logging for success, failure, and no-new-data scenarios
-- Parameterized pipelines for multiple datasets
-- Secure secret management via Azure Key Vault
-- Master pipeline for orchestration
+- Hybrid incremental processing (watermark + file tracking + control tables)  
+- Idempotent and rerunnable pipeline design  
+- Metadata-driven orchestration using control tables  
+- Robust audit logging for success, failure, and no-data scenarios  
+- Parameterized pipelines supporting multiple datasets  
+- Secure secret management via Azure Key Vault integration  
+- Master pipeline for scalable orchestration  
+
+---
 
 ## ADF Pipeline
 
 ![ADF Pipeline](docs/master_pipeline.png)
 
 ### Bronze to Silver Orchestration
-This ADF pipeline orchestrates Bronze to Silver transformations across multiple healthcare datasets (patients, providers, visits, billings) using Execute Pipeline activities and parameterized runs.
+ADF master pipeline orchestrates dataset-specific pipelines using Execute Pipeline activities with parameterized execution.
 
-Includes incremental processing using ingestion_time watermark and audit tracking via control tables.
+Implements dependency management, sequencing, and hybrid incremental logic while ensuring audit tracking and failure handling through control tables.
+
+---
 
 ## Control Tables
 
-Provides end-to-end visibility into pipeline execution, enabling monitoring, failure tracking, and idempotent reprocessing.
-- **Pipeline Control Table**: Stores dataset configuration (paths, load type, watermark column, active flag)
-- **Files Table**: Tracks incoming files (file_name, batch_name, processed_flag) to prevent reprocessing and support incremental loads
-- **Audit Log Table**: Tracks pipeline runs (table_name, batch_name, status, layer, timestamps)
+Provides centralized metadata management and execution tracking for reliable pipeline operations.
+
+- **Pipeline Control Table**: Drives dynamic pipeline execution (source paths, load type, watermark column, active flags)  
+- **Files Table**: Enables file-level incremental processing and prevents duplicate ingestion  
+- **Audit Log Table**: Captures execution metadata (pipeline, dataset, status, timestamps, errors) for monitoring and troubleshooting  
+
 ![Audit Table](docs/audit_table.png)
+
+---
 
 ## Databricks Transformation
 
 ![Databricks Notebook](docs/databricks_notebook.png)
 
-PySpark-based transformations handle data cleaning, schema enforcement, and deduplication using window functions before writing optimized Delta tables to the Silver layer.
+PySpark-based transformations enforce schema consistency, handle nulls, and perform deduplication using window functions.
 
-Secure access to ADLS and Azure SQL is managed via Azure Key Vault secrets.
+Implements incremental processing using ingestion timestamps and writes optimized Delta tables to the Silver layer.
+
+Secure connectivity to ADLS and Azure SQL is achieved via OAuth and Azure Key Vault-backed secrets.
+
+---
+
+## Pipeline Triggering
+
+- Supports both manual execution for testing and scheduled triggers for production runs  
+- Automated scheduling ensures consistent ingestion aligned with data availability  
+- Handles no-data scenarios gracefully without pipeline failure  
+
+---
 
 ## Detailed Documentation
 

@@ -58,4 +58,4 @@ Secure access to ADLS and Azure SQL is managed via Azure Key Vault secrets.
 
 For a full walkthrough of the pipeline, including architecture, pipeline design, transformations, and additional screenshots:
 
-[View Full Documentation](docs/healthcare_project_documentation)
+[View Full Documentation](docs/healthcare-data-pipeline-documentation.pdf)

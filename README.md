@@ -30,6 +30,15 @@ Source > Raw > Bronze > Silver
 - Secure secret management via Azure Key Vault
 - Master pipeline for orchestration
 
+## ADF Pipeline
+
+![ADF Pipeline](docs/master_pipiline.png)
+
+### Bronze to Silver Orchestration
+This ADF pipeline orchestrates Bronze to Silver transformations across multiple healthcare datasets (patients, providers, visits, billings) using Execute Pipeline activities and parameterized runs.
+
+Includes incremental processing using ingestion_time watermark and audit tracking via control tables.
+
 ## Control Tables
 
 Used SQL tables to drive pipeline execution and track runs.

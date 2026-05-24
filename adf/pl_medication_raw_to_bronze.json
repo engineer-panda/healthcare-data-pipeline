@@ -1,0 +1,447 @@
+{
+    "name": "pl_medication_raw_to_bronze",
+    "properties": {
+        "description": "This pipeline incrementally loads new medication files from ADLS raw to bronze layer by identifying unprocessed files using AuditLog, processing each file individually, converting CSV to Parquet, and updating audit and control tables to ensure idempotent and trackable data ingestion.",
+        "activities": [
+            {
+                "name": "lk_get_bronze_history",
+                "type": "Lookup",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureSqlSource",
+                        "sqlReaderQuery": {
+                            "value": "SELECT BatchName FROM Auditlog WHERE Status = 'Bronze_Completed' AND TableName = 'Medications'",
+                            "type": "Expression"
+                        },
+                        "queryTimeout": "02:00:00",
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "ds_sql_control_table",
+                        "type": "DatasetReference"
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "md_list_raw_files",
+                "type": "GetMetadata",
+                "dependsOn": [
+                    {
+                        "activity": "lk_get_bronze_history",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "ds_adls_generic_csv",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "p_filename": "*",
+                            "p_folder": "medications",
+                            "p_container": "raw"
+                        }
+                    },
+                    "fieldList": [
+                        "childItems"
+                    ],
+                    "storeSettings": {
+                        "type": "AzureBlobFSReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                    },
+                    "formatSettings": {
+                        "type": "DelimitedTextReadSettings"
+                    }
+                }
+            },
+            {
+                "name": "fl_indentity_new_batches",
+                "type": "Filter",
+                "dependsOn": [
+                    {
+                        "activity": "md_list_raw_files",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('md_list_raw_files').output.childItems",
+                        "type": "Expression"
+                    },
+                    "condition": {
+                        "value": "@not(\n  contains(\n    string(activity('lk_get_bronze_history').output.value),\n    replace(item().name,'.csv','')\n  )\n)",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "fr_each_medications",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "scr_log_no_files",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('fl_indentity_new_batches').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "sc_log_start",
+                            "type": "Script",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "linkedServiceName": {
+                                "referenceName": "ls_azure_sqldb",
+                                "type": "LinkedServiceReference"
+                            },
+                            "typeProperties": {
+                                "scripts": [
+                                    {
+                                        "type": "Query",
+                                        "text": {
+                                            "value": "@concat(\n'IF EXISTS (\n    SELECT 1 FROM Auditlog \n    WHERE TableName = ''Medications'' \n    AND BatchName = ''', item().name, '''\n)\nBEGIN\n    UPDATE Auditlog\n    SET Status = ''InProgress'', StartTime = GETDATE()\n    WHERE TableName = ''Medications'' \n    AND BatchName = ''', item().name, '''\nEND\nELSE\nBEGIN\n    INSERT INTO Auditlog (TableName, BatchName, Status, StartTime)\n    VALUES (''Medications'', ''', item().name, ''', ''InProgress'', GETDATE())\nEND'\n)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                ],
+                                "scriptBlockExecutionTimeout": "02:00:00"
+                            }
+                        },
+                        {
+                            "name": "cp_raw_to_bronze",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "sc_log_start",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobFSReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    }
+                                },
+                                "sink": {
+                                    "type": "ParquetSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobFSWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "ParquetWriteSettings"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "ds_adls_generic_csv",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "p_filename": "@item().name",
+                                        "p_folder": "medications",
+                                        "p_container": "raw"
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "ds_generic_parquet",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "p_container": "bronze",
+                                        "p_folder": "medications",
+                                        "p_filename": {
+                                            "value": "@replace(item().name, '.csv', '.parquet')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "sc_update_bronze_status",
+                            "type": "Script",
+                            "dependsOn": [
+                                {
+                                    "activity": "cp_raw_to_bronze",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "linkedServiceName": {
+                                "referenceName": "ls_azure_sqldb",
+                                "type": "LinkedServiceReference"
+                            },
+                            "typeProperties": {
+                                "scripts": [
+                                    {
+                                        "type": "Query",
+                                        "text": {
+                                            "value": "@concat('UPDATE Auditlog \nSET Status = ''Bronze_Completed'', \n    Layer = ''Bronze'', \n    EndTime = GETDATE() \nWHERE TableName = ''Medications'' \nAND BatchName = ''', item().name, '''')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                ],
+                                "scriptBlockExecutionTimeout": "02:00:00"
+                            }
+                        },
+                        {
+                            "name": "sc_mark_processed",
+                            "type": "Script",
+                            "dependsOn": [
+                                {
+                                    "activity": "sc_update_bronze_status",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "linkedServiceName": {
+                                "referenceName": "ls_azure_sqldb",
+                                "type": "LinkedServiceReference"
+                            },
+                            "typeProperties": {
+                                "scripts": [
+                                    {
+                                        "type": "Query",
+                                        "text": {
+                                            "value": "@concat(\n'IF EXISTS (\n    SELECT 1 FROM FilesTable \n    WHERE FileName = ''', replace(item().name,'.csv',''), '''\n)\nBEGIN\n    UPDATE FilesTable \n    SET Status = ''Bronze_Processed'', \n        UpdatedDate = GETDATE()\n    WHERE FileName = ''', replace(item().name,'.csv',''), '''\nEND\nELSE\nBEGIN\n    INSERT INTO FilesTable (FileName, Status, CreatedDate)\n    VALUES (\n        ''', replace(item().name,'.csv',''), ''',\n        ''Bronze_Processed'',\n        GETDATE()\n    )\nEND'\n)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                ],
+                                "scriptBlockExecutionTimeout": "02:00:00"
+                            }
+                        },
+                        {
+                            "name": "scr_error_log",
+                            "type": "Script",
+                            "dependsOn": [
+                                {
+                                    "activity": "cp_raw_to_bronze",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "linkedServiceName": {
+                                "referenceName": "ls_azure_sqldb",
+                                "type": "LinkedServiceReference"
+                            },
+                            "typeProperties": {
+                                "scripts": [
+                                    {
+                                        "type": "Query",
+                                        "text": {
+                                            "value": "@concat('INSERT INTO [dbo].[ErrorLog] (TableName, BatchName, ErrorMessage, ErrorTime) \nVALUES (''Medications'', ''', item().name, ''', ''', activity('cp_raw_to_bronze').error.message, ''', GETDATE())')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                ],
+                                "scriptBlockExecutionTimeout": "02:00:00"
+                            }
+                        },
+                        {
+                            "name": "sc_mark_failed_files",
+                            "type": "Script",
+                            "dependsOn": [
+                                {
+                                    "activity": "cp_raw_to_bronze",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "linkedServiceName": {
+                                "referenceName": "ls_azure_sqldb",
+                                "type": "LinkedServiceReference"
+                            },
+                            "typeProperties": {
+                                "scripts": [
+                                    {
+                                        "type": "Query",
+                                        "text": {
+                                            "value": "@concat(\n'UPDATE FilesTable \nSET Status = ''Failed'', \n    UpdatedDate = GETDATE()\nWHERE FileName = ''', replace(item().name,'.csv',''), ''''\n)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                ],
+                                "scriptBlockExecutionTimeout": "02:00:00"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "scr_update_ControlTable",
+                "type": "Script",
+                "dependsOn": [
+                    {
+                        "activity": "fr_each_medications",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "linkedServiceName": {
+                    "referenceName": "ls_azure_sqldb",
+                    "type": "LinkedServiceReference"
+                },
+                "typeProperties": {
+                    "scripts": [
+                        {
+                            "type": "Query",
+                            "text": "UPDATE ControlTable \nSET LastProductionUpdateDate = GETDATE() \nWHERE TableName = 'Medications'"
+                        }
+                    ],
+                    "scriptBlockExecutionTimeout": "02:00:00"
+                }
+            },
+            {
+                "name": "scr_log_no_files",
+                "type": "Script",
+                "dependsOn": [
+                    {
+                        "activity": "fl_indentity_new_batches",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "linkedServiceName": {
+                    "referenceName": "ls_azure_sqldb",
+                    "type": "LinkedServiceReference"
+                },
+                "typeProperties": {
+                    "scripts": [
+                        {
+                            "type": "Query",
+                            "text": {
+                                "value": "@concat(\n'IF NOT EXISTS (\n    SELECT 1 FROM (SELECT ', \n    length(activity('fl_indentity_new_batches').output.value), \n    ' AS cnt) t WHERE cnt > 0\n)\nBEGIN\n    INSERT INTO AuditLog (TableName, BatchName, Status, Layer, StartTime, EndTime)\n    VALUES (\n        ''Medications'',\n        ''NO_NEW_FILES'',\n        ''No_New_Files'',\n        ''Bronze'',\n        GETDATE(),\n        GETDATE()\n    )\nEND'\n)",
+                                "type": "Expression"
+                            }
+                        }
+                    ],
+                    "scriptBlockExecutionTimeout": "02:00:00"
+                }
+            }
+        ],
+        "folder": {
+            "name": "raw_to_bronze/adls_raw_to_bronze"
+        },
+        "annotations": [],
+        "lastPublishTime": "2026-04-13T20:34:46Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}

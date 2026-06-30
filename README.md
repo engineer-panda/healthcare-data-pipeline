@@ -6,7 +6,8 @@ The solution leverages metadata-driven incremental processing using control tabl
 ---
 
 ## Architecture
-![Architecture](architecture.jpg)
+![Healthcare Data Pipeline Architecture](architecture/architecture.jpg)
+
 
 - Azure Data Factory for orchestration and pipeline control  
 - Azure Data Lake Storage Gen2 implementing Medallion Architecture (Raw, Bronze, Silver)  
